@@ -1,0 +1,27 @@
+'use strict';
+const assert=require('node:assert/strict');
+const vm=require('node:vm');
+const fs=require('node:fs');
+const element=()=>({addEventListener(){},classList:{toggle(){}},setAttribute(){},querySelectorAll(){return []},style:{},value:'',hidden:false});
+const nodes=new Map();
+const context={console,document:{getElementById(id){if(!nodes.has(id))nodes.set(id,element());return nodes.get(id)}},localStorage:{getItem(){return null},setItem(){}},module:{exports:{}}};
+vm.runInNewContext(fs.readFileSync(__dirname+'/script.js','utf8'),context,{filename:'script.js'});
+const {defaults,analyze}=context.module.exports;
+function qty(raw,name){return analyze(raw,defaults()).totals.get(name)}
+assert.equal(qty('인셀덤크림3개\n인셀덤크림2개','엑티브 크림'),5);
+assert.equal(qty('인셀덤클린업파우더1개','엑티브 클린업 파우더'),1);
+assert.equal(qty('인셀덤비비1개+인셀덤선젤2개','선젤'),2);
+assert.equal(qty('인셀덤 래디언솜 3종1세트','래디언솜 앰플'),1);
+assert.equal(qty('| 등록상품명 |\n| --- |\n| 인셀덤선젤2개 |','선젤'),2);
+const r=analyze('인셀덤크림3개\n인셀덤비비1개+알수없는상품2개\n인셀덤카밍젤3개+화장품샘플',defaults());
+assert.equal(r.hasErrors,true);
+assert.equal(r.totals.get('비비'),0);
+assert.equal(r.totals.get('엑티브 크림'),3);
+assert.equal(r.totals.get('카밍젤'),3);
+assert.equal(r.audit.filter(x=>x.status==='error').length,1);
+assert.equal(r.gifts.length,1);
+assert.equal(r.totals.size,24);
+const dates=analyze('2026-11-12 인셀덤크림3개\n2026-11-13 인셀덤크림2개',defaults());
+assert.equal(dates.dates.size,2);
+assert.equal(dates.dates.get('2026-11-12').get('엑티브 크림'),3);
+console.log('PASS: 12 inventory validation assertions');
