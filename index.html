@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>재고확인</title>
+  <link rel="stylesheet" href="style.css?v=1.2.0">
+  <script src="script.js?v=1.2.0" defer></script>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div><p class="eyebrow">INVENTORY CHECK · v1.2.0</p><h1>재고확인</h1><p class="muted">주문 붙여넣기 → 정확성 검증 → 엑셀 수량 복사</p></div>
+      <span class="online">● 웹 · 로컬 실행 지원</span>
+    </header>
+    <main>
+      <section class="panel" aria-labelledby="input-title">
+        <div class="section-head"><div><h2 id="input-title">1. 주문 데이터 입력</h2><p class="muted">일반 텍스트 또는 마크다운 표를 그대로 붙여넣으세요. 한 줄을 하나의 주문 행으로 취급합니다.</p></div><button id="sample-btn" class="ghost" type="button">예시 입력</button></div>
+        <label for="orders" class="field-label">주문 원본</label>
+        <textarea id="orders" rows="10" spellcheck="false" placeholder="인셀덤크림3개&#10;인셀덤비비1개+인셀덤선젤1개&#10;인셀덤 래디언솜 3종1세트"></textarea>
+        <div class="actions"><button id="analyze-btn" class="primary" type="button">수량 취합 및 검증</button><button id="clear-btn" class="ghost" type="button">입력 지우기</button><span class="muted small">입력 원본은 서버로 전송되지 않습니다.</span></div>
+      </section>
+      <section id="result-panel" class="panel" hidden aria-live="polite">
+        <div class="section-head"><h2>2. 취합 결과</h2><span id="result-status" class="status"></span></div>
+        <div class="metrics"><div><span>전체 집계 수량</span><strong id="total-count">0</strong></div><div><span>처리 주문 행</span><strong id="row-count">0</strong></div><div><span>정상 / 제외 행</span><strong id="valid-count">0</strong></div><div><span>미인식 / 오류 행</span><strong id="error-count">0</strong></div></div>
+        <p id="warning" class="warning" hidden role="alert"></p>
+        <div class="section-head result-heading"><h3>상품별 합계 <small>(설정된 엑셀 순서)</small></h3><button id="copy-btn" class="primary" type="button">수량만 복사 (세로 1열)</button></div>
+        <div class="table-wrap"><table><thead><tr><th>순서</th><th>상품명</th><th class="num">수량</th></tr></thead><tbody id="summary-body"></tbody></table></div>
+        <div class="copy-block"><div class="section-head"><h3>엑셀 붙여넣기 미리보기</h3><span id="copy-message" class="muted small" role="status"></span></div><textarea id="copy-preview" readonly rows="8" aria-label="복사할 수량 목록"></textarea></div>
+        <details class="detail" open><summary>주문별 검증 결과 <span id="audit-title"></span></summary><p class="muted small">오류 행은 <b>행 전체를 집계에서 제외</b>합니다. 누락된 별칭을 등록하거나 원본을 수정한 뒤 다시 취합하세요.</p><div class="table-wrap"><table><thead><tr><th>원본 행</th><th>상태</th><th>원본 / 항목별 계산</th></tr></thead><tbody id="audit-body"></tbody></table></div></details>
+        <details class="detail"><summary>상품별 상세 계산 내역</summary><div id="product-details"></div></details>
+        <details class="detail"><summary>명시적으로 제외한 사은품 <span id="gift-count"></span></summary><ul id="gift-list"></ul></details>
+        <details class="detail"><summary>날짜별 엑셀 복사 (TSV, 선택 사항)</summary><p class="muted small">원본 행에 YYYY-MM-DD 또는 YYYY.MM.DD 날짜가 있으면 날짜별 집계가 가능합니다. 오류 행이 있으면 복사는 차단됩니다. 각 날짜가 열, 상품이 행입니다.</p><button id="copy-dates-btn" class="ghost" type="button">날짜별 수량 TSV 복사</button><textarea id="dates-preview" rows="7" readonly aria-label="날짜별 TSV 결과"></textarea></details>
+      </section>
+      <section class="panel" aria-labelledby="settings-title">
+        <div class="section-head"><div><h2 id="settings-title">3. 상품 및 규칙 설정</h2><p class="muted">등록된 별칭과 정확히 일치하는 상품만 인식합니다. 띄어쓰기·대소문자 차이는 허용됩니다.</p></div><button id="settings-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="settings-content">설정 열기</button></div>
+        <div id="settings-content" hidden>
+          <div class="settings-actions"><button id="add-product" class="ghost" type="button">+ 상품 추가</button><button id="save-settings" class="primary" type="button">설정 저장</button><button id="reset-settings" class="danger" type="button">기본값 복원</button></div>
+          <div class="backup-tools"><button id="export-settings" class="ghost" type="button">설정 백업(JSON)</button><label for="import-settings">설정 가져오기(JSON)</label><input type="file" id="import-settings" accept=".json,application/json"><p class="muted small">브라우저나 PC를 옮길 때 백업 파일로 상품·별칭·세트·엑셀 순서를 복원할 수 있습니다. 가져오기 전에 현재 설정을 백업하는 것을 권장합니다.</p></div>
+          <p class="muted small">별칭은 쉼표 또는 줄바꿈으로 구분합니다. 판매 상품명뿐 아니라 주문서에 등장하는 표현을 등록하세요. 위/아래 버튼으로 엑셀 순서를 변경합니다.</p>
+          <div class="table-wrap"><table class="settings-table"><thead><tr><th>순서</th><th>표시 상품명</th><th>상품 별칭</th><th>관리</th></tr></thead><tbody id="settings-body"></tbody></table></div>
+          <h3>세트 구성</h3><p class="muted small">한 줄당 <code>세트명 | 상품명:수량, 상품명:수량</code> 형식입니다. 상품명은 위에 등록한 정확한 표시 상품명이어야 합니다. 예: <code>인셀덤 래디언솜 3종 | 래디언솜 토너:1, 래디언솜 앰플:1, 래디언솜 크림:1</code></p>
+          <textarea id="set-config" rows="5" spellcheck="false" aria-label="세트 규칙"></textarea>
+          <h3>사은품 제외 별칭</h3><p class="muted small">쉼표 또는 줄바꿈 구분. <b>마스크</b>는 단독으로 제외하지 않으며, '사은품 마스크'처럼 명시적인 표현만 제외합니다.</p>
+          <textarea id="gift-config" rows="3" spellcheck="false" aria-label="사은품 제외 규칙"></textarea>
+          <p id="settings-message" role="status" class="small"></p>
+        </div>
+      </section>
+    </main>
+    <footer>주문 데이터는 서버에 전송되지 않습니다. 설정은 현재 사이트 주소별 브라우저에 저장되며 JSON 파일로 백업할 수 있습니다.</footer>
+  </div>
+</body>
+</html>
