@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>재고확인</title>
-  <link rel="stylesheet" href="style.css?v=1.2.0">
-  <script src="script.js?v=1.2.0" defer></script>
+  <link rel="stylesheet" href="style.css?v=1.3.0">
+  <script src="script.js?v=1.3.0" defer></script>
 </head>
 <body>
   <div class="app">
     <header class="topbar">
-      <div><p class="eyebrow">INVENTORY CHECK · v1.2.0</p><h1>재고확인</h1><p class="muted">주문 붙여넣기 → 정확성 검증 → 엑셀 수량 복사</p></div>
+      <div><p class="eyebrow">INVENTORY CHECK · v1.3.0</p><h1>재고확인</h1><p class="muted">주문 붙여넣기 → 정확성 검증 → 엑셀 수량 복사</p></div>
       <span class="online">● 웹 · 로컬 실행 지원</span>
     </header>
     <main>
@@ -25,6 +25,7 @@
         <div class="section-head"><h2>2. 취합 결과</h2><span id="result-status" class="status"></span></div>
         <div class="metrics"><div><span>전체 집계 수량</span><strong id="total-count">0</strong></div><div><span>처리 주문 행</span><strong id="row-count">0</strong></div><div><span>정상 / 제외 행</span><strong id="valid-count">0</strong></div><div><span>미인식 / 오류 행</span><strong id="error-count">0</strong></div></div>
         <p id="warning" class="warning" hidden role="alert"></p>
+        <section id="unmatched-panel" class="unmatched-panel" hidden aria-labelledby="unmatched-title"><h3 id="unmatched-title">미인식 상품 바로 해결</h3><p class="muted small">같은 미인식 이름은 한 번만 표시합니다. 후보는 유사도순 추천일 뿐, 실제 상품 선택 및 승인 전까지 수량에 반영되지 않습니다.</p><div id="unmatched-list"></div><p id="unmatched-message" class="muted small" role="status"></p></section>
         <div class="section-head result-heading"><h3>상품별 합계 <small>(설정된 엑셀 순서)</small></h3><button id="copy-btn" class="primary" type="button">수량만 복사 (세로 1열)</button></div>
         <div class="table-wrap"><table><thead><tr><th>순서</th><th>상품명</th><th class="num">수량</th></tr></thead><tbody id="summary-body"></tbody></table></div>
         <div class="copy-block"><div class="section-head"><h3>엑셀 붙여넣기 미리보기</h3><span id="copy-message" class="muted small" role="status"></span></div><textarea id="copy-preview" readonly rows="8" aria-label="복사할 수량 목록"></textarea></div>
