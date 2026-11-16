@@ -28,10 +28,11 @@
   const splitAliases = s => [...new Set(String(s).split(/[,\n]/).map(x=>x.trim()).filter(Boolean))];
   const escapeHtml = s => String(s).replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const clone = obj => JSON.parse(JSON.stringify(obj));
-  let settings = loadSettings(), currentResult = null, editorProducts = [];
+  let settings = loadSettings(), currentResult = null, editorProducts = [], unmatchedGroups = [];
 
   function loadSettings(){
     try {const v=JSON.parse(localStorage.getItem(STORAGE_KEY)); if(v) {
+      // Preserve user-defined settings while migrating known aliases for the built-in item.
       const powder=v.products?.find(p=>p.id==='default-17' && p.name==='엑티브 클린업 파우더');
       if(powder){
         const existing=new Set(powder.aliases.map(norm));
@@ -67,6 +68,7 @@
     for(const set of s.sets){if(!Array.isArray(set.aliases)||!set.aliases.length||!Array.isArray(set.components)||!set.components.length)throw Error('세트의 별칭이나 구성품이 비어 있습니다.');for(const c of set.components){if(!productNames.has(c.name)||!Number.isSafeInteger(c.qty)||c.qty<1)throw Error(`세트 구성품 또는 수량 확인: ${c.name}`);}}
     buildIndex(s);
   }
+  // Markdown table cells are handled separately to prevent pipe delimiters becoming product text.
   function parseSource(raw){
     const rows=[];
     raw.split(/\r?\n/).forEach((original,idx)=>{
@@ -86,6 +88,7 @@
         }
       }
       if(/^(등록상품명|상품명|주문상품명|주문 목록|주문목록|order items?|product name)$/i.test(content))return;
+      // Strip a date or timestamp only when it appears at the start of a row.
       const prefix=content.match(/^(20\d{2}[-/.]\d{1,2}[-/.]\d{1,2})(?:[ T]+\d{1,2}:\d{2}(?::\d{2})?)?\s*(?:[|,;:\-–]\s*|\s+)(.+)$/);
       if(prefix){externalDate=externalDate||prefix[1];content=prefix[2].trim();}
       if(!content)return;
@@ -98,6 +101,7 @@
   function parseItem(text,index){
     let item=text.trim().replace(/^[-•]\s*/,'').trim();
     if(!item)return {type:'error',reason:'빈 상품 항목'};
+    // Parse a complete suffix, never determine products by substring match.
     const m=item.match(/^(.*?)(?:\s*[x×*]\s*(\d+)|\s*(\d+)\s*(개|세트|set|sets|팩|박스|병|통|매|ea|EA))\s*$/i);
     const label=m?m[1].trim():item;
     const qty=m?Number(m[2]||m[3]):null;
@@ -112,15 +116,15 @@
       if(qty===null)return {type:'error',reason:`세트 수량이 없습니다: ${item} (예: 1세트)`};
       return {type:'set',components:index.setMap.get(k).set.components.map(c=>({name:c.name,count:c.qty*qty})),label:item};
     }
-    return {type:'error',reason:`미등록 별칭: ${item}`};
+    return {type:'error',reason:`미등록 별칭: ${item}`,unknownLabel:label};
   }
   function analyze(raw,s){
     validateSettings(s);
     const idx=buildIndex(s), rows=parseSource(raw), totals=new Map(s.products.map(p=>[p.name,0])), audit=[], gifts=[], productDetail=new Map(s.products.map(p=>[p.name,[]])),dates=new Map(),undatedRows=[];
     for(const row of rows){
-      const parts=row.content.split(/\s*[+＋]\s*/);
+      const parts=row.content.split(/\s*[+＋]\s*/); // each item must be recognized; any error rejects the entire row
       const interpreted=parts.map(p=>parseItem(p,idx)), errors=interpreted.filter(p=>p.type==='error');
-      if(errors.length){audit.push({...row,status:'error',message:errors.map(p=>p.reason).join(' / ')});continue;}
+      if(errors.length){audit.push({...row,status:'error',issues:errors.map(p=>({reason:p.reason,unknownLabel:p.unknownLabel||null})),message:errors.map(p=>p.reason).join(' / ')});continue;}
       const contribution=new Map(), excluded=[];
       for(const item of interpreted){
         if(item.type==='gift'){excluded.push(`${item.label} (×${item.count})`);continue;}
@@ -138,6 +142,82 @@
     }
     return {totals,audit,gifts,productDetail,dates,undatedRows,hasErrors:audit.some(a=>a.status==='error'),count: [...totals.values()].reduce((a,b)=>a+b,0)};
   }
+  // Similarity is only a suggestion. No fuzzy match is ever counted as an order.
+  function levenshtein(a,b){
+    if(a===b)return 0;
+    let previous=Array.from({length:b.length+1},(_,i)=>i);
+    for(let i=1;i<=a.length;i++){
+      const current=[i];
+      for(let j=1;j<=b.length;j++)current[j]=Math.min(current[j-1]+1,previous[j]+1,previous[j-1]+(a[i-1]===b[j-1]?0:1));
+      previous=current;
+    }
+    return previous[b.length];
+  }
+  function variantNumbers(label){
+    return [...norm(label).matchAll(/(\d{1,3})호/g)].map(m=>m[1]);
+  }
+  function suggestionScore(label,alias){
+    const a=norm(label),b=norm(alias);
+    if(!a||!b)return 0;
+    const left=variantNumbers(label),right=variantNumbers(alias);
+    if(left.length&&right.length&&left.join(',')!==right.join(','))return -1;
+    // An alias without a shade cannot override a shade-specific product identity.
+    if(left.length&&(/쿠션/.test(a))&&!right.length&&/쿠션/.test(b))return 0;
+    return 1-levenshtein(a,b)/Math.max(a.length,b.length);
+  }
+  function suggestedProducts(label,products){
+    return products.map(p=>({id:p.id,name:p.name,score:Math.max(...[p.name,...p.aliases].map(a=>suggestionScore(label,a)))}))
+      .filter(p=>p.score>=0).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name,'ko'));
+  }
+  function renderUnmatched(r){
+    const container=$('unmatched-panel'), list=$('unmatched-list');
+    const byName=new Map();
+    for(const row of r.audit){
+      if(row.status!=='error')continue;
+      for(const issue of row.issues||[]){
+        if(!issue.unknownLabel)continue;
+        const key=norm(issue.unknownLabel);
+        if(!key)continue;
+        if(!byName.has(key))byName.set(key,{key,label:issue.unknownLabel,lines:[]});
+        byName.get(key).lines.push(row.line);
+      }
+    }
+    unmatchedGroups=[...byName.values()];
+    container.hidden=unmatchedGroups.length===0;
+    if(!unmatchedGroups.length){list.innerHTML='';return;}
+    list.innerHTML=unmatchedGroups.map((g,i)=>{
+      const picks=suggestedProducts(g.label,settings.products);
+      const top=picks[0];
+      const recommendation=top&&top.score>=0.5?`추천: ${escapeHtml(top.name)} (${Math.round(top.score*100)}% 유사)`:'유력한 추천 없음 · 직접 선택 필요';
+      const options=['<option value="">상품을 선택해 주세요 (자동 집계 안 됨)</option>', ...picks.map(p=>`<option value="${escapeHtml(p.id)}" ${top&&top.id===p.id&&top.score>=0.5?'selected':''}>${escapeHtml(p.name)}</option>`)];
+      return `<div class="unmatched-item" data-index="${i}"><div><strong>${escapeHtml(g.label)}</strong><p class="muted small">원본 ${g.lines.join(', ')}행 · ${g.lines.length}회 발견 · ${recommendation}</p></div><div class="unmatched-actions"><label for="unmatched-select-${i}">승인할 실제 상품</label><select id="unmatched-select-${i}" aria-label="${escapeHtml(g.label)} 상품 선택">${options.join('')}</select><button class="primary" type="button" data-approve="${i}">별칭 승인·저장</button></div></div>`;
+    }).join('');
+    $('unmatched-message').textContent='추천은 참고용이며, 승인하기 전까지 해당 주문 행은 집계되지 않습니다.';
+  }
+  function approveAlias(index,productId){
+    const group=unmatchedGroups[index];
+    if(!group)throw Error('미인식 상품 목록이 변경되었습니다. 다시 취합해 주세요.');
+    if(!productId)throw Error('실제 상품을 먼저 선택해 주세요.');
+    const next=clone(settings), product=next.products.find(p=>p.id===productId);
+    if(!product)throw Error('선택한 상품이 설정에 없습니다.');
+    if(!product.aliases.some(a=>norm(a)===group.key)&&norm(product.name)!==group.key)product.aliases.push(group.label);
+    validateSettings(next); // Refuse conflicting aliases; never silently overwrite a mapping.
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(next));
+    settings=next;
+    const result=analyze($('orders').value,settings);
+    showResult(result); // Reprocess ALL source rows, including previously blocked mixed rows.
+    $('unmatched-message').textContent=`「${group.label}」 → 「${product.name}」 별칭을 저장하고 자동 재집계했습니다.`;
+  }
+  $('unmatched-list').addEventListener('click',e=>{
+    const button=e.target.closest('button[data-approve]');if(!button)return;
+    const i=Number(button.dataset.approve),group=unmatchedGroups[i];
+    if(!group)return;
+    const select=button.parentElement.querySelector('select');
+    const product=settings.products.find(p=>p.id===select.value);
+    if(!product){$('unmatched-message').textContent='실제 상품을 먼저 선택해 주세요.';return;}
+    if(!confirm(`「${group.label}」을(를) 「${product.name}」의 별칭으로 저장할까요?\n이 상품이 포함된 주문은 다시 집계됩니다.`))return;
+    try{approveAlias(i,product.id);}catch(error){$('unmatched-message').textContent=`별칭 저장 실패: ${error.message}`;}
+  });
   function showResult(r){
     currentResult=r;$('result-panel').hidden=false;
     const err=r.audit.filter(a=>a.status==='error'), valid=r.audit.length-err.length;
@@ -145,6 +225,7 @@
     $('valid-count').textContent=valid;$('error-count').textContent=err.length;
     $('result-status').textContent=err.length?'검증 필요':'검증 완료';$('result-status').classList.toggle('bad',!!err.length);
     $('warning').hidden=!err.length;
+    renderUnmatched(r);
     $('warning').textContent=err.length?`⚠ ${err.length}개 주문 행에 미인식 항목 또는 오류가 있습니다. 원본 행 번호: ${err.map(x=>x.line).join(', ')}. 해당 행은 합산하지 않았으며 오류 해결 전 엑셀 복사가 차단됩니다.`:'';
     $('summary-body').innerHTML=settings.products.map((p,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td class="num">${r.totals.get(p.name)}</td></tr>`).join('');
     $('copy-preview').value=settings.products.map(p=>r.totals.get(p.name)).join('\n');
@@ -160,7 +241,8 @@
     $('dates-preview').title=r.undatedRows.length?`날짜 없는 주문 행: ${r.undatedRows.join(', ')}. 날짜별 복사가 차단됩니다.`:'';
   }
   async function copyText(text){
-    if(navigator.clipboard&&window.isSecureContext){try{await navigator.clipboard.writeText(text);return true;}catch(e){}}
+    // On file:// URLs the modern clipboard API may be unavailable.
+    if(navigator.clipboard&&window.isSecureContext){try{await navigator.clipboard.writeText(text);return true;}catch(e){/* fallback */}}
     const node=document.createElement('textarea');node.value=text;node.setAttribute('readonly','');node.style.cssText='position:fixed;left:-9999px;top:0';document.body.appendChild(node);node.select();let success=false;
     try{success=document.execCommand('copy');}finally{node.remove();}return success;
   }
@@ -225,5 +307,6 @@
     finally{e.target.value='';}
   });
   $('reset-settings').addEventListener('click',()=>{if(!confirm('등록 상품·별칭·세트를 모두 기본값으로 되돌리시겠습니까?'))return;const next=defaults();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(next));settings=next;renderConfig();$('result-panel').hidden=true;currentResult=null;msg('기본값으로 복원했습니다.');}catch(e){msg(`복원 실패: ${e.message}`,true);}});
-  if(typeof module!=='undefined'&&module.exports)module.exports={defaults,analyze,parseSource,parseItem,buildIndex,validateSettings};
+  // Internal parser API supports deterministic browser / Node smoke tests.
+  if(typeof module!=='undefined'&&module.exports)module.exports={defaults,analyze,parseSource,parseItem,buildIndex,validateSettings,suggestedProducts,approveAlias};
 })();
