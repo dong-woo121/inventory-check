@@ -21,8 +21,8 @@
   // Default set definitions refer to stable product IDs so renamed product labels remain valid.
   // The names "3종/5종" are seller listing names; only the explicitly listed components are counted.
   const additionalSetDefinitions = [
-    {aliases:['인셀덤3종세트','인셀덤 3종세트','인셀덤 3종 세트'],items:[['default-6',1],['default-2',1]]},
-    {aliases:['인셀덤5종세트','인셀덤 5종세트','인셀덤 5종 세트'],items:[['default-6',1],['default-2',1],['default-1',1],['default-15',1]]}
+    {aliases:['인셀덤3종세트','인셀덤 3종세트','인셀덤 3종 세트','인셀덤3종','인셀덤 3종'],items:[['default-6',1],['default-2',1]]},
+    {aliases:['인셀덤5종세트','인셀덤 5종세트','인셀덤 5종 세트','인셀덤5종','인셀덤 5종'],items:[['default-6',1],['default-2',1],['default-1',1],['default-15',1]]}
   ];
   function additionalSets(products){
     const byId=new Map(products.map(p=>[p.id,p.name]));
@@ -60,6 +60,23 @@
           const aliases=new Set(set.aliases.map(norm));
           const alreadyPresent=v.sets.some(old=>Array.isArray(old.aliases)&&old.aliases.some(a=>aliases.has(norm(a))));
           if(!alreadyPresent)v.sets.push(set);
+          else {
+            const existingSet=v.sets.find(old=>Array.isArray(old.aliases)&&old.aliases.some(a=>aliases.has(norm(a))));
+            // Only add non-conflicting missing aliases to an existing matching set.
+            // Do not overwrite user-edited components or steal names assigned elsewhere.
+            if(existingSet){
+              const assigned=new Set([
+                ...v.products.flatMap(p=>[p.name,...p.aliases]),
+                ...v.gifts,
+                ...v.sets.filter(x=>x!==existingSet).flatMap(x=>x.aliases)
+              ].map(norm));
+              const own=new Set(existingSet.aliases.map(norm));
+              for(const alias of set.aliases){
+                const key=norm(alias);
+                if(!own.has(key)&&!assigned.has(key)){existingSet.aliases.push(alias);own.add(key);}
+              }
+            }
+          }
         }
       }
       validateSettings(v);
