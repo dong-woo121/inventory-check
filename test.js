@@ -77,4 +77,18 @@ const migrated=JSON.parse(saved.get('inventory-check-settings-v1'));
 assert.equal(migrated.sets.length,3);
 assert.ok(migrated.products.find(p=>p.id==='default-4').aliases.includes('인설덤비비'));
 assert.equal(freshCtx.module.exports.analyze('인셀덤5종세트1세트',migrated).count,4);
+// Short set labels must survive removal of the trailing quantity token.
+for (const [raw, first, cream, mist, gel] of [
+  ['인셀덤3종1세트',1,1,0,0],
+  ['인셀덤3종2개',2,2,0,0],
+  ['인셀덤5종1세트',1,1,1,1],
+  ['인셀덤5종세트1개',1,1,1,1]
+]) {
+  const value=analyze(raw,defaults());
+  assert.equal(value.hasErrors,false,raw);
+  for (const [name,expected] of [
+    ['퍼스트 패키지',first],['엑티브 크림',cream],
+    ['오일미스트',mist],['카밍젤',gel]
+  ]) assert.equal(value.totals.get(name),expected,raw+' / '+name);
+}
 console.log('PASS: manual approval, bundle decomposition, localStorage migration, and inventory safety assertions');
