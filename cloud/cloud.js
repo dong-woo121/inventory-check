@@ -131,21 +131,27 @@
     const raw=$('orders').value;
     // Force recomputation from the exact current input before persistence.
     const r=recalculate();
-    const created=await request('/rest/v1/rpc/save_inventory_batch',{method:'POST',body:{
-      p_title:$('batch-title').value.trim()||'주문 취합',p_batch_date:$('batch-date').value||null,
-      p_raw_text:raw,p_snapshot:snapshot(),p_lines:linesSnapshot()
-    }});
-    message(`작업 저장 완료: ${created}${r.hasErrors?' (오류 행 포함 · 검증 필요)':''}`);
-    await loadHistory();
+    const button=$('save-batch');button.disabled=true;
+    try{
+      const created=await request('/rest/v1/rpc/save_inventory_batch',{method:'POST',body:{
+        p_title:$('batch-title').value.trim()||'주문 취합',p_batch_date:$('batch-date').value||null,
+        p_raw_text:raw,p_snapshot:snapshot(),p_lines:linesSnapshot()
+      }});
+      message(`작업 저장 완료: ${created}${r.hasErrors?' (오류 행 포함 · 검증 필요)':''}`);
+      await loadHistory();
+    } finally {button.disabled=false;}
   }
   async function loadHistory(){
-    state.history=await request('/rest/v1/order_batches?select=id,title,batch_date,created_at,created_by,row_count,error_count,total_quantity,status,result_snapshot,raw_text&order=created_at.desc&limit=100');
+    state.history=await request('/rest/v1/order_batches?select=id,title,batch_date,created_at,created_by,row_count,error_count,total_quantity,status&order=created_at.desc&limit=100');
     const profiles=await request('/rest/v1/profiles?select=user_id,email,display_name');
     const owner=new Map(profiles.map(p=>[p.user_id,p.display_name||p.email]));
     $('history-body').innerHTML=state.history.map((h,i)=>`<tr><td>${esc(new Date(h.created_at).toLocaleString('ko-KR'))}</td><td>${esc(h.title)}</td><td>${esc(owner.get(h.created_by)||'작업자')}</td><td>${h.row_count}</td><td class="${h.error_count?'badtext':''}">${h.error_count}</td><td>${h.total_quantity}</td><td><button class="secondary" data-history="${i}">열기</button></td></tr>`).join('')||'<tr><td colspan="7">저장된 기록이 없습니다.</td></tr>';
   }
-  function showHistory(index){
-    const h=state.history[index];if(!h)return;
+  async function showHistory(index){
+    const item=state.history[index];if(!item)return;
+    const rows=await request('/rest/v1/order_batches?select=result_snapshot,raw_text&id=eq.'+encodeURIComponent(item.id));
+    if(!rows.length)throw Error('선택한 이력을 찾지 못했습니다.');
+    const h={...item,...rows[0]};
     state.historySelected=h;
     $('history-preview').textContent=JSON.stringify({title:h.title,date:h.batch_date,created_at:h.created_at,
       status:h.status,error_count:h.error_count,products:h.result_snapshot.products,raw_text:h.raw_text},null,2);
@@ -229,7 +235,7 @@
   $('reload-requests').addEventListener('click',()=>wrap(loadRequests));
   $('import-local-aliases').addEventListener('click',()=>wrap(importLocalAliases));
   $('load-history').addEventListener('click',()=>wrap(loadHistory));
-  $('history-body').addEventListener('click',e=>{const btn=e.target.closest('button[data-history]');if(btn)showHistory(Number(btn.dataset.history))});
+  $('history-body').addEventListener('click',e=>{const btn=e.target.closest('button[data-history]');if(btn)wrap(()=>showHistory(Number(btn.dataset.history)))});
   $('history-copy').addEventListener('click',()=>wrap(async()=>{if(!state.historySelected||state.historySelected.error_count)throw Error('오류가 있는 이력은 수량 복사가 차단됩니다.');await copy(state.historySelected.result_snapshot.products.map(p=>p.quantity).join('\n'));message('과거 집계 수량을 복사했습니다.')}));
   $('logout-btn').addEventListener('click',()=>wrap(async()=>{try{await request('/auth/v1/logout',{method:'POST'});}finally{setSession(null);state.profile=null;state.result=null;show('workspace',false);show('login-panel',true);message('로그아웃했습니다.')}}));
   $('edit-connection').addEventListener('click',()=>{
