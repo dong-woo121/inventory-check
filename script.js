@@ -18,9 +18,22 @@
     '쿠션21호,인셀덤쿠션21호,루미너스쿠션21호,21호쿠션','쿠션23호,인셀덤쿠션23호,루미너스쿠션23호,23호쿠션',
     '보타랩바디워시,보타랩 바디워시','인셀덤멀티밤,인셀덤 멀티밤'
   ];
+  // Default set definitions refer to stable product IDs so renamed product labels remain valid.
+  // The names "3종/5종" are seller listing names; only the explicitly listed components are counted.
+  const additionalSetDefinitions = [
+    {aliases:['인셀덤3종세트','인셀덤 3종세트','인셀덤 3종 세트'],items:[['default-6',1],['default-2',1]]},
+    {aliases:['인셀덤5종세트','인셀덤 5종세트','인셀덤 5종 세트'],items:[['default-6',1],['default-2',1],['default-1',1],['default-15',1]]}
+  ];
+  function additionalSets(products){
+    const byId=new Map(products.map(p=>[p.id,p.name]));
+    return additionalSetDefinitions.flatMap(rule=>{
+      if(rule.items.some(([id])=>!byId.has(id)))return [];
+      return [{aliases:[...rule.aliases],components:rule.items.map(([id,qty])=>({name:byId.get(id),qty}))}];
+    });
+  }
   const defaults = () => ({
     products: names.map((name,i)=>({id:`default-${i}`,name,aliases:aliases[i].split(',')})),
-    sets:[{aliases:['인셀덤 래디언솜 3종','래디언솜 3종','인셀덤래디언솜3종'],components:[{name:'래디언솜 토너',qty:1},{name:'래디언솜 앰플',qty:1},{name:'래디언솜 크림',qty:1}]}],
+    sets:[{aliases:['인셀덤 래디언솜 3종','래디언솜 3종','인셀덤래디언솜3종'],components:[{name:'래디언솜 토너',qty:1},{name:'래디언솜 앰플',qty:1},{name:'래디언솜 크림',qty:1}]},...additionalSets(names.map((name,i)=>({id:`default-${i}`,name})))],
     gifts:['화장품샘플','화장품 샘플','사은품 마스크','마스크 사은품','무료 마스크','증정 마스크','마스크팩 사은품','사은품 마스크팩']
   });
   const $ = id => document.getElementById(id);
@@ -38,6 +51,15 @@
         const existing=new Set(powder.aliases.map(norm));
         for(const alias of ['인셀덤클린업파우더','클린업파우더']){
           if(!existing.has(norm(alias)))powder.aliases.push(alias);
+        }
+      }
+      // Migrate new set rules into existing localStorage without resetting user settings.
+      // Existing user-defined aliases/rules win on overlaps; missing built-in products are not recreated.
+      if(Array.isArray(v.sets)&&Array.isArray(v.products)){
+        for(const set of additionalSets(v.products)){
+          const aliases=new Set(set.aliases.map(norm));
+          const alreadyPresent=v.sets.some(old=>Array.isArray(old.aliases)&&old.aliases.some(a=>aliases.has(norm(a))));
+          if(!alreadyPresent)v.sets.push(set);
         }
       }
       validateSettings(v);
