@@ -162,6 +162,33 @@
     message(`「${group.label}」 별칭 승인 요청을 등록했습니다. 관리자가 승인하면 공용 사전에 반영됩니다.`);
     await loadRequests();
   }
+  async function importLocalAliases(){
+    if(state.profile?.role!=='admin')throw Error('관리자만 별칭을 DB에 이전할 수 있습니다.');
+    const raw=localStorage.getItem('inventory-check-settings-v1');
+    if(!raw)throw Error('이 브라우저에 기존 localStorage 설정이 없습니다. 예전 사이트에서 JSON 백업을 이용해 이전할 수 있습니다.');
+    const source=JSON.parse(raw);
+    if(!Array.isArray(source.products))throw Error('기존 설정 파일 형식이 올바르지 않습니다.');
+    const known=new Map();
+    for(const p of state.settings.products)for(const alias of [p.name,...p.aliases])known.set(core.norm(alias),p.id);
+    for(const set of state.settings.sets)for(const alias of set.aliases)known.set(core.norm(alias),'set');
+    for(const alias of state.settings.gifts)known.set(core.norm(alias),'gift');
+    const additions=[],conflicts=[];
+    for(const old of source.products){
+      const current=state.products.find(p=>p.id===old.id);
+      if(!current||!Array.isArray(old.aliases))continue;
+      for(const label of old.aliases){
+        const key=core.norm(label);if(!key)continue;
+        const target=known.get(key);
+        if(target&&target!==current.id){conflicts.push(label);continue;}
+        if(!target){additions.push({product_id:current.id,label});known.set(key,current.id);}
+      }
+    }
+    if(!additions.length){message('이전할 새 별칭이 없습니다.'+(conflicts.length?' 충돌 '+conflicts.length+'건은 제외했습니다.':''));return;}
+    if(!confirm(`기존 브라우저에 저장된 별칭 ${additions.length}개를 공용 DB에 추가할까요?\n충돌 ${conflicts.length}건은 제외합니다. 기존 DB 데이터는 삭제되지 않습니다.`))return;
+    await request('/rest/v1/product_aliases',{method:'POST',body:additions,headers:{Prefer:'return=minimal'}});
+    await loadCatalog();
+    message(`기존 별칭 ${additions.length}개를 공용 DB에 이전했습니다. ${conflicts.length}개는 충돌로 제외했습니다.`);
+  }
   async function loadRequests(){
     const isAdmin=state.profile?.role==='admin';
     const all=await request('/rest/v1/alias_requests?select=id,proposed_label,suggested_product_id,status,requested_by,created_at,reviewed_at&order=created_at.desc&limit=100');
@@ -183,7 +210,12 @@
   $('config-form').addEventListener('submit',e=>{e.preventDefault();wrap(async()=>{
     const url=$('project-url').value.trim(),key=$('publishable-key').value.trim();
     if(!/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(url))throw Error('Supabase Project URL만 입력해 주세요.');
-    if(!key||key.startsWith('sb_secret_')||key.startsWith('eyJ')&&key.length>200)throw Error('publishable/anon 키만 입력하세요. Secret/service_role 키는 금지됩니다.');
+    if(!key||key.startsWith('sb_secret_'))throw Error('publishable/anon 키만 입력하세요. Secret/service_role 키는 금지됩니다.');
+    if(key.startsWith('eyJ')){
+      try{const payload=JSON.parse(atob(key.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+        if(payload.role!=='anon')throw Error('anon 키가 아닙니다.');
+      }catch(e){throw Error('유효한 anon JWT 키가 아닙니다.');}
+    }else if(!key.startsWith('sb_publishable_'))throw Error('publishable 또는 anon 키만 입력해 주세요.');
     state.config={url,key};localStorage.setItem(STORAGE_CONFIG,JSON.stringify(state.config));show('config-panel',false);show('login-panel',true);
     message('연결 정보가 저장됐습니다. 작업자 계정으로 로그인하세요.');
   })});
@@ -195,11 +227,17 @@
   $('requests-list').addEventListener('click',e=>{const btn=e.target.closest('button[data-review]');if(!btn)return;wrap(async()=>{const a=state.requests[Number(btn.dataset.review)];const sel=btn.parentElement.querySelector('select');if(!confirm(`「${a.proposed_label}」 별칭을 ${btn.dataset.action==='approve'?'승인':'거절'}하시겠습니까?`))return;await review(Number(btn.dataset.review),btn.dataset.action,sel?.value)})});
   $('reload-catalog').addEventListener('click',()=>wrap(async()=>{await loadCatalog();await loadRequests();message('공용 설정을 새로 불러왔습니다.')}));
   $('reload-requests').addEventListener('click',()=>wrap(loadRequests));
+  $('import-local-aliases').addEventListener('click',()=>wrap(importLocalAliases));
   $('load-history').addEventListener('click',()=>wrap(loadHistory));
   $('history-body').addEventListener('click',e=>{const btn=e.target.closest('button[data-history]');if(btn)showHistory(Number(btn.dataset.history))});
   $('history-copy').addEventListener('click',()=>wrap(async()=>{if(!state.historySelected||state.historySelected.error_count)throw Error('오류가 있는 이력은 수량 복사가 차단됩니다.');await copy(state.historySelected.result_snapshot.products.map(p=>p.quantity).join('\n'));message('과거 집계 수량을 복사했습니다.')}));
   $('logout-btn').addEventListener('click',()=>wrap(async()=>{try{await request('/auth/v1/logout',{method:'POST'});}finally{setSession(null);state.profile=null;state.result=null;show('workspace',false);show('login-panel',true);message('로그아웃했습니다.')}}));
+  $('edit-connection').addEventListener('click',()=>{
+    $('project-url').value=state.config?.url||'';
+    $('publishable-key').value=state.config?.key||'';
+    show('login-panel',false);show('config-panel',true);
+  });
   $('batch-date').value=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
   state.config=getConfig();state.session=getSession();
-  if(!state.config){show('config-panel',true);message('먼저 Supabase 연결 정보를 입력하세요.')}else if(!state.session){show('login-panel',true);}else{wrap(openWorkspace)}
+  if(!state.config){show('config-panel',true);message('먼저 Supabase 연결 정보를 입력하세요.')}else if(!state.session){show('login-panel',true);}else{wrap(async()=>{try{await openWorkspace()}catch(error){setSession(null);show('workspace',false);show('login-panel',true);throw error}})}
 })();
