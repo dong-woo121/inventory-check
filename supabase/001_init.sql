@@ -164,8 +164,16 @@ begin
  select count(*) into errs from jsonb_array_elements(p_lines) x where x->>'status'='error';
  if exists(select 1 from jsonb_array_elements(p_lines) x where x->>'status' not in ('ok','gift','error') or x->>'status' is null) then raise exception 'Invalid line status'; end if;
  if exists(select 1 from jsonb_array_elements(p_lines) x where (x->>'line') !~ '^[1-9][0-9]*$' or x->>'original' is null) then raise exception 'Invalid line'; end if;
+ if exists(select 1 from jsonb_array_elements(p_lines) x where jsonb_typeof(x->'items') <> 'array' or x->'items' is null) then raise exception 'Invalid items array'; end if;
+ if exists(select 1 from jsonb_array_elements(p_lines) x
+   cross join lateral jsonb_array_elements(x->'items') item
+   where (item->>'quantity') !~ '^[1-9][0-9]*$') then raise exception 'Invalid item quantity'; end if;
  total:=coalesce((p_snapshot->>'total_quantity')::bigint,0);
  if total<0 then raise exception 'Invalid total'; end if;
+ if total <> (select coalesce(sum((item->>'quantity')::bigint),0)
+              from jsonb_array_elements(p_lines) x
+              cross join lateral jsonb_array_elements(x->'items') item)
+   then raise exception 'Result total differs from recognized rows'; end if;
  insert into public.order_batches(title,batch_date,created_by,status,raw_text,result_snapshot,row_count,error_count,total_quantity)
  values(left(coalesce(nullif(trim(p_title),''),'주문 취합'),150),coalesce(p_batch_date,current_date),who,
  case when errs=0 then 'validated' else 'needs_review' end,p_raw_text,p_snapshot,cnt,errs,total)
@@ -192,6 +200,26 @@ grant select on public.profiles,public.products,public.product_aliases,public.bu
 grant insert on public.alias_requests to authenticated;
 grant insert,update,delete on public.products,public.product_aliases,public.bundles,
  public.bundle_aliases,public.bundle_components,public.gift_rules to authenticated;
+
+-- Audit all approved catalog changes, including direct admin edits.
+create or replace function public.audit_inventory_catalog() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  insert into public.audit_logs(actor_id,action,entity,entity_id,detail)
+  values(auth.uid(),lower(TG_OP),TG_TABLE_NAME,
+    coalesce((case when TG_OP='DELETE' then to_jsonb(OLD) else to_jsonb(NEW) end)->>'id',
+      (case when TG_OP='DELETE' then to_jsonb(OLD) else to_jsonb(NEW) end)->>'product_id',
+      (case when TG_OP='DELETE' then to_jsonb(OLD) else to_jsonb(NEW) end)->>'bundle_id'),
+    jsonb_build_object('before',case when TG_OP in ('UPDATE','DELETE') then to_jsonb(OLD) else null end,
+                       'after',case when TG_OP in ('UPDATE','INSERT') then to_jsonb(NEW) else null end));
+  return coalesce(NEW,OLD);
+end; $$;
+do $$ declare table_name text; begin
+ foreach table_name in array array['products','product_aliases','bundles','bundle_aliases','bundle_components','gift_rules'] loop
+   execute format('drop trigger if exists inventory_audit on public.%I',table_name);
+   execute format('create trigger inventory_audit after insert or update or delete on public.%I for each row execute function public.audit_inventory_catalog()',table_name);
+ end loop;
+end $$;
 
 -- INITIAL ADMIN: after creating/inviting your own user via Supabase Auth dashboard run separately:
 -- update public.profiles set role='admin' where email='YOUR_ADMIN_EMAIL';
