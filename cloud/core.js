@@ -73,11 +73,31 @@ function buildIndex(s){
     }
     return {type:'error',reason:`미등록 별칭: ${item}`,unknownLabel:label};
   }
+  function splitOrderParts(input){
+    const stack=[], parts=[];let current='';
+    const opens={'(':')','（':'）','[':']','［':'］'};
+    const closes=new Set(Object.values(opens));
+    for(const ch of input){
+      if(Object.prototype.hasOwnProperty.call(opens,ch)){stack.push(opens[ch]);current+=ch;continue;}
+      if(closes.has(ch)){
+        if(stack.pop()!==ch)throw Error('상품명 괄호가 올바르게 닫히지 않았습니다.');
+        current+=ch;continue;
+      }
+      if((ch==='+'||ch==='＋') && stack.length===0){parts.push(current.trim());current='';continue;}
+      current+=ch;
+    }
+    if(stack.length)throw Error('상품명 괄호가 닫히지 않았습니다.');
+    parts.push(current.trim());
+    return parts;
+  }
   function analyze(raw,s){
     validateSettings(s);
     const idx=buildIndex(s), rows=parseSource(raw), totals=new Map(s.products.map(p=>[p.name,0])), audit=[], gifts=[], productDetail=new Map(s.products.map(p=>[p.name,[]])),dates=new Map(),undatedRows=[];
     for(const row of rows){
-      const parts=row.content.split(/\s*[+＋]\s*/); // each item must be recognized; any error rejects the entire row
+      let parts;
+      try{parts=splitOrderParts(row.content);}
+      catch(error){audit.push({...row,status:'error',issues:[{reason:error.message,unknownLabel:null}],message:error.message});continue;}
+      // Reject a whole row if any part cannot be recognized.
       const interpreted=parts.map(p=>parseItem(p,idx)), errors=interpreted.filter(p=>p.type==='error');
       if(errors.length){audit.push({...row,status:'error',issues:errors.map(p=>({reason:p.reason,unknownLabel:p.unknownLabel||null})),message:errors.map(p=>p.reason).join(' / ')});continue;}
       const contribution=new Map(), excluded=[];
