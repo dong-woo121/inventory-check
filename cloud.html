@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>재고확인 · 공용 작업공간</title>
+<link rel="stylesheet" href="cloud/cloud.css?v=0.1.0"><script src="cloud/core.js?v=0.1.0" defer></script><script src="cloud/cloud.js?v=0.1.0" defer></script></head>
+<body><main class="wrap">
+<header><div><small>INVENTORY CHECK · TEAM BETA</small><h1>재고확인 <span>공용 작업공간</span></h1><p>공용 DB · 관리자 승인 · 원본 및 집계 이력 보존</p></div><a href="index.html">기존 로컬 버전</a></header>
+<div id="notice" class="notice" role="status" aria-live="polite"></div>
+<section id="config-panel" class="panel" hidden><h2>1. Supabase 연결</h2><p>최초 설정: Supabase SQL을 실행한 후 Project URL과 <b>publishable/anon key</b>를 입력하세요. <b>service_role/secret key는 절대 입력하지 마세요.</b></p>
+<form id="config-form"><label>Project URL<input id="project-url" type="url" placeholder="https://xxxxxxxx.supabase.co" required></label><label>Publishable / anon key<input id="publishable-key" autocomplete="off" type="text" required placeholder="sb_publishable_…"></label><button type="submit">연결 저장</button></form><p class="small">공용 URL과 publishable 키는 브라우저에 저장합니다. 저장소에는 포함하지 않습니다.</p></section>
+<section id="login-panel" class="panel" hidden><h2>작업자 로그인</h2><form id="login-form"><label>이메일<input id="login-email" type="email" autocomplete="username" required></label><label>비밀번호<input id="login-password" type="password" autocomplete="current-password" required></label><button type="submit">로그인</button></form><p class="small">계정은 Supabase Auth 관리자 콘솔에서 초대합니다. 회원가입은 공개하지 않습니다.</p><button type="button" class="secondary" id="edit-connection">연결 정보 수정</button></section>
+<div id="workspace" hidden>
+<section class="panel mini"><div class="between"><div><b id="identity">작업자</b> <span id="role-tag" class="tag"></span></div><div class="tools"><button id="reload-catalog" class="secondary">공용 설정 새로고침</button><button id="logout-btn" class="secondary">로그아웃</button></div></div></section>
+<section class="panel"><h2>2. 주문 붙여넣기 및 집계</h2><p>공용 상품 사전으로 집계합니다. 미인식 품목은 행 전체 보류되며 관리자의 별칭 승인 전에는 자동 반영되지 않습니다.</p><label>작업 제목<input id="batch-title" value="오늘 주문 취합" maxlength="150"></label><label>작업 날짜<input id="batch-date" type="date"></label><label>주문 원본<textarea id="orders" rows="9" spellcheck="false" placeholder="인셀덤비비2개&#10;인설덤비비2개&#10;인셀덤5종1세트"></textarea></label>
+<div class="tools"><button id="analyze-btn">수량 취합·검증</button><button id="save-batch" class="secondary" disabled>DB에 취합 결과 저장</button><button id="copy-qty" class="secondary" disabled>수량만 엑셀 복사</button></div>
+<div id="results" hidden><div class="metrics"><div><small>집계 수량</small><b id="quantity-total">0</b></div><div><small>전체 주문 행</small><b id="line-total">0</b></div><div><small>미인식/오류 행</small><b id="error-total">0</b></div></div><p id="result-info"></p><div class="scroll"><table><thead><tr><th>순서</th><th>상품명</th><th class="num">수량</th></tr></thead><tbody id="totals-body"></tbody></table></div>
+<h3>미인식 항목</h3><div id="unknown-list"></div><h3>원본 행별 검증</h3><div class="scroll"><table><thead><tr><th>원본 행</th><th>상태</th><th>원본/상세</th></tr></thead><tbody id="audit-body"></tbody></table></div></div></section>
+<section class="panel"><div class="between"><h2>3. 저장된 작업 이력</h2><button id="load-history" class="secondary">새로고침</button></div><p>과거 집계는 당시 결과가 그대로 보존됩니다. 새 별칭이 승인되어도 기존 이력은 자동으로 변경되지 않습니다.</p><div class="scroll"><table><thead><tr><th>등록 시각</th><th>작업 제목</th><th>작업자</th><th>주문 행</th><th>오류</th><th>집계 수량</th><th>보기</th></tr></thead><tbody id="history-body"></tbody></table></div><div id="history-detail" hidden><h3>저장된 결과</h3><pre id="history-preview"></pre><button id="history-copy" class="secondary">과거 집계 수량 복사</button></div></section>
+<section class="panel" id="requests-panel"><h2>4. 미인식 상품 별칭 승인</h2><p id="request-description">작업자는 관리자에게 매핑을 요청할 수 있습니다. 관리자가 승인해야 공용 상품 사전에 반영됩니다.</p><div id="requests-list"></div></section>
+<section class="panel" id="admin-panel" hidden><h2>5. 관리자 상품 설정</h2><p>현재 단계에서는 안전한 공용 별칭 승인과 작업 이력을 제공합니다. 상품 추가/삭제·세트 구성 변경은 SQL 및 차기 관리자 편집 화면에서 관리합니다.</p><div class="tools"><button id="reload-requests" class="secondary">승인 요청 새로고침</button><button id="import-local-aliases" class="secondary">기존 브라우저 별칭 이전</button></div></section>
+</div>
+<footer>공용 사전은 서버에서 읽습니다. 작업 원본은 'DB에 취합 결과 저장' 시에만 서버에 전송됩니다.</footer>
+</main></body></html>
