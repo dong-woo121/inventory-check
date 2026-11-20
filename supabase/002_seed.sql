@@ -167,4 +167,10 @@ insert into public.gift_rules(label) values('무료 마스크') on conflict(norm
 insert into public.gift_rules(label) values('증정 마스크') on conflict(norm_key) do nothing;
 insert into public.gift_rules(label) values('마스크팩 사은품') on conflict(norm_key) do nothing;
 insert into public.gift_rules(label) values('사은품 마스크팩') on conflict(norm_key) do nothing;
+-- Package variant aliases: one cushion package equals one Excel unit.
+insert into public.product_aliases(product_id,label)
+values
+ ('default-20','인셀덤 루미너스 모이스트 쿠션 21호(본품+리필)'),
+ ('default-21','인셀덤 루미너스 모이스트 쿠션 23호(본품+리필)')
+on conflict(norm_key) do nothing;
 COMMIT;
