@@ -15,7 +15,7 @@
     '파우더워시,인셀덤파우더워시,인셀덤클린업파우더,클린업파우더,인셀덤엑티브클린업파우더,엑티브클린업파우더,엑티브클린업파우더워시',
     '바디크림,보타랩바디크림,보타랩바디크림릴랙싱,보타랩바디크림모닝',
     '메이크업세팅스프레이,인셀덤메이크업스프레이,인셀덤메이크업세팅스프레이,세팅스프레이',
-    '쿠션21호,인셀덤쿠션21호,루미너스쿠션21호,21호쿠션','쿠션23호,인셀덤쿠션23호,루미너스쿠션23호,23호쿠션',
+    '쿠션21호,인셀덤쿠션21호,루미너스쿠션21호,21호쿠션,인셀덤 루미너스 모이스트 쿠션 21호(본품+리필)','쿠션23호,인셀덤쿠션23호,루미너스쿠션23호,23호쿠션,인셀덤 루미너스 모이스트 쿠션 23호(본품+리필)',
     '보타랩바디워시,보타랩 바디워시','인셀덤멀티밤,인셀덤 멀티밤'
   ];
   // Default set definitions refer to stable product IDs so renamed product labels remain valid.
@@ -78,6 +78,13 @@
             }
           }
         }
+      }
+      for(const [id,label] of [['default-20','인셀덤 루미너스 모이스트 쿠션 21호(본품+리필)'],['default-21','인셀덤 루미너스 모이스트 쿠션 23호(본품+리필)']]){
+        const target=v.products?.find(p=>p.id===id);
+        if(!target)continue;
+        const key=norm(label);
+        const taken=[...(v.products||[]).filter(p=>p!==target).flatMap(p=>[p.name,...p.aliases]),...(v.sets||[]).flatMap(x=>x.aliases),...(v.gifts||[])].some(a=>norm(a)===key);
+        if(!taken && ![target.name,...target.aliases].some(a=>norm(a)===key))target.aliases.push(label);
       }
       validateSettings(v);
       try{localStorage.setItem(STORAGE_KEY,JSON.stringify(v));}catch(e){console.warn('설정 자동 저장 실패:',e.message);}
@@ -157,11 +164,31 @@
     }
     return {type:'error',reason:`미등록 별칭: ${item}`,unknownLabel:label};
   }
+  function splitOrderParts(input){
+    const stack=[], parts=[];let current='';
+    const opens={'(':')','（':'）','[':']','［':'］'};
+    const closes=new Set(Object.values(opens));
+    for(const ch of input){
+      if(Object.prototype.hasOwnProperty.call(opens,ch)){stack.push(opens[ch]);current+=ch;continue;}
+      if(closes.has(ch)){
+        if(stack.pop()!==ch)throw Error('상품명 괄호가 올바르게 닫히지 않았습니다.');
+        current+=ch;continue;
+      }
+      if((ch==='+'||ch==='＋') && stack.length===0){parts.push(current.trim());current='';continue;}
+      current+=ch;
+    }
+    if(stack.length)throw Error('상품명 괄호가 닫히지 않았습니다.');
+    parts.push(current.trim());
+    return parts;
+  }
   function analyze(raw,s){
     validateSettings(s);
     const idx=buildIndex(s), rows=parseSource(raw), totals=new Map(s.products.map(p=>[p.name,0])), audit=[], gifts=[], productDetail=new Map(s.products.map(p=>[p.name,[]])),dates=new Map(),undatedRows=[];
     for(const row of rows){
-      const parts=row.content.split(/\s*[+＋]\s*/); // each item must be recognized; any error rejects the entire row
+      let parts;
+      try{parts=splitOrderParts(row.content);}
+      catch(error){audit.push({...row,status:'error',issues:[{reason:error.message,unknownLabel:null}],message:error.message});continue;}
+      // Reject a whole row if any part cannot be recognized.
       const interpreted=parts.map(p=>parseItem(p,idx)), errors=interpreted.filter(p=>p.type==='error');
       if(errors.length){audit.push({...row,status:'error',issues:errors.map(p=>({reason:p.reason,unknownLabel:p.unknownLabel||null})),message:errors.map(p=>p.reason).join(' / ')});continue;}
       const contribution=new Map(), excluded=[];
