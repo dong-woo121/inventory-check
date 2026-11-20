@@ -91,4 +91,17 @@ for (const [raw, first, cream, mist, gel] of [
     ['오일미스트',mist],['카밍젤',gel]
   ]) assert.equal(value.totals.get(name),expected,raw+' / '+name);
 }
+// '+' within a package label is not a bundle separator.
+const cushions=analyze([
+ '인셀덤  루미너스 모이스트 쿠션 23호(본품+리필) 1개',
+ '인셀덤  루미너스 모이스트 쿠션 23호(본품+리필) 1개',
+ '인셀덤  루미너스 모이스트 쿠션 21호(본품+리필) 1개 +화장품샘플'
+].join('\n'),defaults());
+assert.equal(cushions.hasErrors,false);
+assert.equal(cushions.totals.get('루미너스 쿠션 23호'),2);
+assert.equal(cushions.totals.get('루미너스 쿠션 21호'),1);
+assert.equal(cushions.gifts.length,1);
+const broken=analyze('인셀덤 루미너스 모이스트 쿠션 21호(본품+리필 1개',defaults());
+assert.equal(broken.hasErrors,true);
+assert.equal(broken.totals.get('루미너스 쿠션 21호'),0);
 console.log('PASS: manual approval, bundle decomposition, localStorage migration, and inventory safety assertions');
