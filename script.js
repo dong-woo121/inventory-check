@@ -33,7 +33,7 @@
   }
   const defaults = () => ({
     products: names.map((name,i)=>({id:`default-${i}`,name,aliases:aliases[i].split(',')})),
-    sets:[{aliases:['인셀덤 래디언솜 3종','래디언솜 3종','인셀덤래디언솜3종'],components:[{name:'래디언솜 토너',qty:1},{name:'래디언솜 앰플',qty:1},{name:'래디언솜 크림',qty:1}]},...additionalSets(names.map((name,i)=>({id:`default-${i}`,name})))],
+    sets:[{aliases:['인셀덤 래디언솜 3종','래디언솜 3종','인셀덤래디언솜3종','인셀덤래디엄솜3종','인셀덤래디엄솜3종세트'],components:[{name:'래디언솜 토너',qty:1},{name:'래디언솜 앰플',qty:1},{name:'래디언솜 크림',qty:1}]},...additionalSets(names.map((name,i)=>({id:`default-${i}`,name})))],
     gifts:['화장품샘플','화장품 샘플','사은품 마스크','마스크 사은품','무료 마스크','증정 마스크','마스크팩 사은품','사은품 마스크팩']
   });
   const $ = id => document.getElementById(id);
@@ -76,6 +76,24 @@
                 if(!own.has(key)&&!assigned.has(key)){existingSet.aliases.push(alias);own.add(key);}
               }
             }
+          }
+        }
+      }
+      // Extend the known Radiansome set in previously saved browser configurations.
+      // Do not alter the user's custom component quantities or other aliases.
+      if(Array.isArray(v.sets)){
+        const originalKeys=new Set(['인셀덤 래디언솜 3종','래디언솜 3종','인셀덤래디언솜3종'].map(norm));
+        const selected=v.sets.find(set=>Array.isArray(set.aliases)&&set.aliases.some(a=>originalKeys.has(norm(a))));
+        if(selected){
+          const occupied=new Set([
+            ...(v.products||[]).flatMap(p=>[p.name,...p.aliases]),
+            ...(v.gifts||[]),
+            ...v.sets.filter(set=>set!==selected).flatMap(set=>set.aliases)
+          ].map(norm));
+          const own=new Set(selected.aliases.map(norm));
+          for(const alias of ['인셀덤래디엄솜3종','인셀덤래디엄솜3종세트']){
+            const key=norm(alias);
+            if(!occupied.has(key)&&!own.has(key)){selected.aliases.push(alias);own.add(key);}
           }
         }
       }
@@ -159,8 +177,11 @@
       return {type:'product',name:index.productMap.get(k).display,count:qty,label:item};
     }
     if(index.setMap.has(k)){
-      if(qty===null)return {type:'error',reason:`세트 수량이 없습니다: ${item} (예: 1세트)`};
-      return {type:'set',components:index.setMap.get(k).set.components.map(c=>({name:c.name,count:c.qty*qty})),label:item};
+      // One explicitly registered shorthand is used as a complete one-set order label.
+      // All other sets still require explicit quantities.
+      const actualQty=qty===null && k===norm('인셀덤래디엄솜3종') ? 1 : qty;
+      if(actualQty===null)return {type:'error',reason:`세트 수량이 없습니다: ${item} (예: 1세트)`};
+      return {type:'set',components:index.setMap.get(k).set.components.map(c=>({name:c.name,count:c.qty*actualQty})),label:item};
     }
     return {type:'error',reason:`미등록 별칭: ${item}`,unknownLabel:label};
   }
