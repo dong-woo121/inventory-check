@@ -113,4 +113,22 @@ for(const [raw,count] of [['인셀덤래디엄솜3종',1],['인셀덤래디엄�
   }
   assert.equal(result.count,count*3);
 }
+// Registered set aliases may contain '+'; treat as a single bundle.
+const comboSettings=defaults();
+for(const [raw,expectedGel,expectedMist,expectedGifts] of [
+ ['인셀덤 카밍밸런스젤 + 오일미스트 1세트',1,1,0],
+ ['인셀덤 카밍밸런스젤 + 오일미스트 2세트',2,2,0],
+ ['인셀덤 카밍밸런스젤 + 오일미스트 1세트+화장품샘플',1,1,1],
+ ['인셀덤카밍젤3개+인셀덤오일미스트2개',3,2,0]
+]){
+  const result=analyze(raw,comboSettings);
+  assert.equal(result.hasErrors,false,raw);
+  assert.equal(result.totals.get('카밍젤'),expectedGel,raw);
+  assert.equal(result.totals.get('오일미스트'),expectedMist,raw);
+  assert.equal(result.gifts.length,expectedGifts,raw);
+}
+const seven=analyze(Array(7).fill('인셀덤 카밍밸런스젤 + 오일미스트 1세트').join('\n'),comboSettings);
+assert.equal(seven.audit.length,7);
+assert.equal(seven.totals.get('카밍젤'),7);
+assert.equal(seven.totals.get('오일미스트'),7);
 console.log('PASS: manual approval, bundle decomposition, localStorage migration, and inventory safety assertions');
