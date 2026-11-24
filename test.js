@@ -104,4 +104,13 @@ assert.equal(cushions.gifts.length,1);
 const broken=analyze('인셀덤 루미너스 모이스트 쿠션 21호(본품+리필 1개',defaults());
 assert.equal(broken.hasErrors,true);
 assert.equal(broken.totals.get('루미너스 쿠션 21호'),0);
+// Registered typo must expand to the three Radiansome inventory products.
+for(const [raw,count] of [['인셀덤래디엄솜3종',1],['인셀덤래디엄솜3종1세트',1],['인셀덤래디엄솜3종세트2개',2]]){
+  const result=analyze(raw,defaults());
+  assert.equal(result.hasErrors,false,raw);
+  for(const name of ['래디언솜 토너','래디언솜 앰플','래디언솜 크림']){
+    assert.equal(result.totals.get(name),count,raw+' / '+name);
+  }
+  assert.equal(result.count,count*3);
+}
 console.log('PASS: manual approval, bundle decomposition, localStorage migration, and inventory safety assertions');
