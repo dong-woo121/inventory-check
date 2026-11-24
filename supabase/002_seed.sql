@@ -180,4 +180,19 @@ on conflict(norm_key) do nothing;
 insert into public.bundle_aliases(bundle_id,label)
 select id,'인셀덤래디엄솜3종세트' from public.bundles where name='인셀덤 래디언솜 3종'
 on conflict(norm_key) do nothing;
+-- Approved two-item set; names containing '+' are complete bundle aliases.
+insert into public.bundles(name) values('인셀덤 카밍밸런스젤 + 오일미스트') on conflict(name) do nothing;
+insert into public.bundle_aliases(bundle_id,label)
+select b.id,a.label from public.bundles b
+cross join (values ('인셀덤 카밍밸런스젤 + 오일미스트'),
+                   ('인셀덤 카밍밸런스젤+오일미스트'),
+                   ('카밍밸런스젤 + 오일미스트')) a(label)
+where b.name='인셀덤 카밍밸런스젤 + 오일미스트'
+on conflict(norm_key) do nothing;
+insert into public.bundle_components(bundle_id,product_id,quantity)
+select b.id,component.product_id,1
+from public.bundles b
+cross join (values ('default-15'),('default-1')) component(product_id)
+where b.name='인셀덤 카밍밸런스젤 + 오일미스트'
+on conflict(bundle_id,product_id) do nothing;
 COMMIT;
