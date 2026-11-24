@@ -173,4 +173,11 @@ values
  ('default-20','인셀덤 루미너스 모이스트 쿠션 21호(본품+리필)'),
  ('default-21','인셀덤 루미너스 모이스트 쿠션 23호(본품+리필)')
 on conflict(norm_key) do nothing;
+-- Typo variants map to the existing Radiansome 3-item bundle, not individual products.
+insert into public.bundle_aliases(bundle_id,label)
+select id,'인셀덤래디엄솜3종' from public.bundles where name='인셀덤 래디언솜 3종'
+on conflict(norm_key) do nothing;
+insert into public.bundle_aliases(bundle_id,label)
+select id,'인셀덤래디엄솜3종세트' from public.bundles where name='인셀덤 래디언솜 3종'
+on conflict(norm_key) do nothing;
 COMMIT;
