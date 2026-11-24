@@ -21,6 +21,7 @@
   // Default set definitions refer to stable product IDs so renamed product labels remain valid.
   // The names "3종/5종" are seller listing names; only the explicitly listed components are counted.
   const additionalSetDefinitions = [
+    {aliases:['인셀덤 카밍밸런스젤 + 오일미스트','인셀덤 카밍밸런스젤+오일미스트','카밍밸런스젤 + 오일미스트'],items:[['default-15',1],['default-1',1]]},
     {aliases:['인셀덤3종세트','인셀덤 3종세트','인셀덤 3종 세트','인셀덤3종','인셀덤 3종'],items:[['default-6',1],['default-2',1]]},
     {aliases:['인셀덤5종세트','인셀덤 5종세트','인셀덤 5종 세트','인셀덤5종','인셀덤 5종'],items:[['default-6',1],['default-2',1],['default-1',1],['default-15',1]]}
   ];
@@ -202,12 +203,27 @@
     parts.push(current.trim());
     return parts;
   }
+  function tokenizeOrder(input,index){
+    const pieces=splitOrderParts(input),result=[];
+    for(let i=0;i<pieces.length;){
+      let found=null,end=i;
+      // Prefer longest explicitly registered combination; never guess from partial names.
+      for(let j=pieces.length-1;j>=i;j--){
+        const candidate=pieces.slice(i,j+1).join('+');
+        const parsed=parseItem(candidate,index);
+        if(parsed.type!=='error'){found=candidate;end=j;break;}
+      }
+      result.push(found ?? pieces[i]);
+      i=(found?end:i)+1;
+    }
+    return result;
+  }
   function analyze(raw,s){
     validateSettings(s);
     const idx=buildIndex(s), rows=parseSource(raw), totals=new Map(s.products.map(p=>[p.name,0])), audit=[], gifts=[], productDetail=new Map(s.products.map(p=>[p.name,[]])),dates=new Map(),undatedRows=[];
     for(const row of rows){
       let parts;
-      try{parts=splitOrderParts(row.content);}
+      try{parts=tokenizeOrder(row.content,idx);}
       catch(error){audit.push({...row,status:'error',issues:[{reason:error.message,unknownLabel:null}],message:error.message});continue;}
       // Reject a whole row if any part cannot be recognized.
       const interpreted=parts.map(p=>parseItem(p,idx)), errors=interpreted.filter(p=>p.type==='error');
