@@ -68,8 +68,9 @@ function buildIndex(s){
       return {type:'product',name:index.productMap.get(k).display,count:qty,label:item};
     }
     if(index.setMap.has(k)){
-      if(qty===null)return {type:'error',reason:`세트 수량이 없습니다: ${item} (예: 1세트)`};
-      return {type:'set',components:index.setMap.get(k).set.components.map(c=>({name:c.name,count:c.qty*qty})),label:item};
+      const actualQty=qty===null && k===norm('인셀덤래디엄솜3종') ? 1 : qty;
+      if(actualQty===null)return {type:'error',reason:`세트 수량이 없습니다: ${item} (예: 1세트)`};
+      return {type:'set',components:index.setMap.get(k).set.components.map(c=>({name:c.name,count:c.qty*actualQty})),label:item};
     }
     return {type:'error',reason:`미등록 별칭: ${item}`,unknownLabel:label};
   }
