@@ -9,32 +9,32 @@ const context={console,document:{getElementById(id){if(!nodes.has(id))nodes.set(
 vm.runInNewContext(fs.readFileSync(__dirname+'/script.js','utf8'),context,{filename:'script.js'});
 const {defaults,analyze}=context.module.exports;
 function qty(raw,name){return analyze(raw,defaults()).totals.get(name)}
-assert.equal(qty('인셀덤크림3개\n인셀덤크림2개','엑티브 크림'),5);
-assert.equal(qty('인셀덤클린업파우더1개','엑티브 클린업 파우더'),1);
-assert.equal(qty('인셀덤비비1개+인셀덤선젤2개','선젤'),2);
-assert.equal(qty('인셀덤 래디언솜 3종1세트','래디언솜 앰플'),1);
-assert.equal(qty('| 등록상품명 |\n| --- |\n| 인셀덤선젤2개 |','선젤'),2);
+assert.equal(qty('인셀덤크림3개\n인셀덤크림2개','더마톨로지 크림'),5);
+assert.equal(qty('인셀덤클린업파우더1개','클렌징 파우더 워시'),1);
+assert.equal(qty('인셀덤비비1개+인셀덤선젤2개','모이스쳐 레이어 선 프로텍터'),2);
+assert.equal(qty('인셀덤 래디언솜 3종1세트','래디언솜 에센스'),1);
+assert.equal(qty('| 등록상품명 |\n| --- |\n| 인셀덤선젤2개 |','모이스쳐 레이어 선 프로텍터'),2);
 const r=analyze('인셀덤크림3개\n인셀덤비비1개+알수없는상품2개\n인셀덤카밍젤3개+화장품샘플',defaults());
 assert.equal(r.hasErrors,true);
-assert.equal(r.totals.get('비비'),0);
-assert.equal(r.totals.get('엑티브 크림'),3);
-assert.equal(r.totals.get('카밍젤'),3);
+assert.equal(r.totals.get('쉬어 글로우 비비'),0);
+assert.equal(r.totals.get('더마톨로지 크림'),3);
+assert.equal(r.totals.get('카밍 밸런스 젤'),3);
 assert.equal(r.audit.filter(x=>x.status==='error').length,1);
 assert.equal(r.gifts.length,1);
-assert.equal(r.totals.size,24);
+assert.equal(r.totals.size,26);
 const dates=analyze('2026-11-12 인셀덤크림3개\n2026-11-13 인셀덤크림2개',defaults());
 assert.equal(dates.dates.size,2);
-assert.equal(dates.dates.get('2026-11-12').get('엑티브 크림'),3);
+assert.equal(dates.dates.get('2026-11-12').get('더마톨로지 크림'),3);
 const {suggestedProducts,approveAlias}=context.module.exports;
 const typo=analyze('인설덤비비2개',defaults());
 assert.equal(typo.hasErrors,true);
-assert.equal(typo.totals.get('비비'),0);
+assert.equal(typo.totals.get('쉬어 글로우 비비'),0);
 assert.equal(typo.audit[0].issues[0].unknownLabel,'인설덤비비');
-assert.equal(suggestedProducts('인설덤비비',defaults().products)[0].name,'비비');
+assert.equal(suggestedProducts('인설덤비비',defaults().products)[0].name,'쉬어 글로우 비비');
 const variants=suggestedProducts('인셀덤 루미너스 쿠션 21호',defaults().products);
-assert.ok(variants.find(x=>x.name==='루미너스 쿠션 21호').score>0.5);
-assert.equal(variants.some(x=>x.name==='루미너스 쿠션 23호'),false);
-assert.equal(qty('인셀덤 루미너스 쿠션 21호1개','루미너스 쿠션 23호'),0);
+assert.ok(variants.find(x=>x.name==='루미너스 모이스트 쿠션 21호').score>0.5);
+assert.equal(variants.some(x=>x.name==='루미너스 모이스트 쿠션 23호'),false);
+assert.equal(qty('인셀덤 루미너스 쿠션 21호1개','루미너스 모이스트 쿠션 23호'),0);
 context.document.getElementById('orders').value='인설덤비비2개\n인설덤비비2개+인셀덤선젤1개';
 nodes.get('analyze-btn').listeners.click();
 assert.equal(nodes.get('error-count').textContent,2);
@@ -47,24 +47,24 @@ assert.ok(saved.get('inventory-check-settings-v1').includes('인설덤비비'));
 // Bundle decomposition: 3종/5종 are listing labels, not inferred component counts.
 const three=analyze('인셀덤3종세트1세트',defaults());
 assert.equal(three.hasErrors,false);
-assert.equal(three.totals.get('퍼스트 패키지'),1);
-assert.equal(three.totals.get('엑티브 크림'),1);
-assert.equal(three.totals.get('오일미스트'),0);
-assert.equal(three.totals.get('카밍젤'),0);
+assert.equal(three.totals.get('더마톨로지 퍼스트 패키지'),1);
+assert.equal(three.totals.get('더마톨로지 크림'),1);
+assert.equal(three.totals.get('투페이스 오일 미스트'),0);
+assert.equal(three.totals.get('카밍 밸런스 젤'),0);
 assert.equal(three.count,2);
 const five=analyze('인셀덤5종세트2세트',defaults());
 assert.equal(five.hasErrors,false);
-assert.equal(five.totals.get('퍼스트 패키지'),2);
-assert.equal(five.totals.get('엑티브 크림'),2);
-assert.equal(five.totals.get('오일미스트'),2);
-assert.equal(five.totals.get('카밍젤'),2);
+assert.equal(five.totals.get('더마톨로지 퍼스트 패키지'),2);
+assert.equal(five.totals.get('더마톨로지 크림'),2);
+assert.equal(five.totals.get('투페이스 오일 미스트'),2);
+assert.equal(five.totals.get('카밍 밸런스 젤'),2);
 assert.equal(five.count,8);
 const both=analyze('인셀덤3종세트1개+인셀덤5종세트1세트',defaults());
 assert.equal(both.hasErrors,false);
-assert.equal(both.totals.get('퍼스트 패키지'),2);
-assert.equal(both.totals.get('엑티브 크림'),2);
-assert.equal(both.totals.get('오일미스트'),1);
-assert.equal(both.totals.get('카밍젤'),1);
+assert.equal(both.totals.get('더마톨로지 퍼스트 패키지'),2);
+assert.equal(both.totals.get('더마톨로지 크림'),2);
+assert.equal(both.totals.get('투페이스 오일 미스트'),1);
+assert.equal(both.totals.get('카밍 밸런스 젤'),1);
 // Old locally stored settings must receive newly introduced sets without losing approved aliases.
 const older=defaults();
 older.sets=older.sets.slice(0,1);
@@ -87,8 +87,8 @@ for (const [raw, first, cream, mist, gel] of [
   const value=analyze(raw,defaults());
   assert.equal(value.hasErrors,false,raw);
   for (const [name,expected] of [
-    ['퍼스트 패키지',first],['엑티브 크림',cream],
-    ['오일미스트',mist],['카밍젤',gel]
+    ['더마톨로지 퍼스트 패키지',first],['더마톨로지 크림',cream],
+    ['투페이스 오일 미스트',mist],['카밍 밸런스 젤',gel]
   ]) assert.equal(value.totals.get(name),expected,raw+' / '+name);
 }
 // '+' within a package label is not a bundle separator.
@@ -98,17 +98,17 @@ const cushions=analyze([
  '인셀덤  루미너스 모이스트 쿠션 21호(본품+리필) 1개 +화장품샘플'
 ].join('\n'),defaults());
 assert.equal(cushions.hasErrors,false);
-assert.equal(cushions.totals.get('루미너스 쿠션 23호'),2);
-assert.equal(cushions.totals.get('루미너스 쿠션 21호'),1);
+assert.equal(cushions.totals.get('루미너스 모이스트 쿠션 23호'),2);
+assert.equal(cushions.totals.get('루미너스 모이스트 쿠션 21호'),1);
 assert.equal(cushions.gifts.length,1);
 const broken=analyze('인셀덤 루미너스 모이스트 쿠션 21호(본품+리필 1개',defaults());
 assert.equal(broken.hasErrors,true);
-assert.equal(broken.totals.get('루미너스 쿠션 21호'),0);
+assert.equal(broken.totals.get('루미너스 모이스트 쿠션 21호'),0);
 // Registered typo must expand to the three Radiansome inventory products.
 for(const [raw,count] of [['인셀덤래디엄솜3종',1],['인셀덤래디엄솜3종1세트',1],['인셀덤래디엄솜3종세트2개',2]]){
   const result=analyze(raw,defaults());
   assert.equal(result.hasErrors,false,raw);
-  for(const name of ['래디언솜 토너','래디언솜 앰플','래디언솜 크림']){
+  for(const name of ['래디언솜 토너','래디언솜 에센스','래디언솜 크림']){
     assert.equal(result.totals.get(name),count,raw+' / '+name);
   }
   assert.equal(result.count,count*3);
@@ -123,12 +123,22 @@ for(const [raw,expectedGel,expectedMist,expectedGifts] of [
 ]){
   const result=analyze(raw,comboSettings);
   assert.equal(result.hasErrors,false,raw);
-  assert.equal(result.totals.get('카밍젤'),expectedGel,raw);
-  assert.equal(result.totals.get('오일미스트'),expectedMist,raw);
+  assert.equal(result.totals.get('카밍 밸런스 젤'),expectedGel,raw);
+  assert.equal(result.totals.get('투페이스 오일 미스트'),expectedMist,raw);
   assert.equal(result.gifts.length,expectedGifts,raw);
 }
 const seven=analyze(Array(7).fill('인셀덤 카밍밸런스젤 + 오일미스트 1세트').join('\n'),comboSettings);
 assert.equal(seven.audit.length,7);
-assert.equal(seven.totals.get('카밍젤'),7);
-assert.equal(seven.totals.get('오일미스트'),7);
+assert.equal(seven.totals.get('카밍 밸런스 젤'),7);
+assert.equal(seven.totals.get('투페이스 오일 미스트'),7);
+// Excel order must contain exactly 26 rows, including two distinct body cream SKUs.
+const catalog=defaults();
+const expectedOrder=["라이프닝 뷰티 콜라겐","라이프닝 액티브 에너지샷","라이프닝 리셋 비타민&오메가3","라이프닝 딥톡 플러스","모이스쳐 레이어 선 프로텍터","멀티 스틱 밤","카밍 밸런스 젤","클렌징 파우더 워시","쉬어 글로우 비비","투페이스 오일 미스트","더마톨로지 퍼스트 패키지","모이스쳐 클렌징 오일","더마톨로지 크림","슈아멜 너리싱 바디워시","데저티콜라 플러스 컨디셔너","데저티콜라 플러스 샴푸","스테이 메이크업 스프레이","밸런싱 젤 클렌저","퍼밍 멜팅 마스크","루미너스 모이스트 쿠션 21호","루미너스 모이스트 쿠션 23호","래디언솜 에센스","래디언솜 크림","래디언솜 토너","슈아멜 너리싱 바디 크림 선데이","슈아멜 너리싱 바디 크림 모닝가든"];
+assert.deepEqual(Array.from(catalog.products,p=>p.name),expectedOrder);
+assert.equal(analyze('퍼밍 멜팅 마스크2개',catalog).totals.get('퍼밍 멜팅 마스크'),2);
+assert.equal(analyze('슈아멜 너리싱 바디 크림 모닝가든3개',catalog).totals.get('슈아멜 너리싱 바디 크림 모닝가든'),3);
+assert.equal(analyze('슈아멜 너리싱 바디 크림 선데이1개',catalog).totals.get('슈아멜 너리싱 바디 크림 선데이'),1);
+assert.equal(analyze('보타랩바디크림1개',catalog).hasErrors,true);
+assert.equal(analyze('인셀덤5종1세트',catalog).totals.get('더마톨로지 크림'),1);
+assert.equal(analyze('인셀덤래디엄솜3종',catalog).totals.get('래디언솜 에센스'),1);
 console.log('PASS: manual approval, bundle decomposition, localStorage migration, and inventory safety assertions');
