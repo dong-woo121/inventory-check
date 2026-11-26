@@ -74,7 +74,7 @@ const freshNodes=new Map();
 const freshCtx={console,document:{getElementById(id){if(!freshNodes.has(id))freshNodes.set(id,element());return freshNodes.get(id)}},localStorage:{getItem(k){return saved.get(k)||null},setItem(k,v){saved.set(k,v)}},module:{exports:{}}};
 vm.runInNewContext(fs.readFileSync(__dirname+'/script.js','utf8'),freshCtx,{filename:'script.js'});
 const migrated=JSON.parse(saved.get('inventory-check-settings-v1'));
-assert.equal(migrated.sets.length,3);
+assert.equal(migrated.sets.length,4);
 assert.ok(migrated.products.find(p=>p.id==='default-4').aliases.includes('인설덤비비'));
 assert.equal(freshCtx.module.exports.analyze('인셀덤5종세트1세트',migrated).count,4);
 // Short set labels must survive removal of the trailing quantity token.
