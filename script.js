@@ -44,7 +44,6 @@
     if(!stored||!Array.isArray(stored.products)||!Array.isArray(stored.sets))return stored;
     const baseline=catalogProducts();
     const byId=new Map(stored.products.map(p=>[p.id,p]));
-    const oldNames=new Map(stored.products.map(p=>[p.name,p.id]));
     const renamed=new Map();
     const ambiguous=new Set(['보타랩 바디크림']);
     const rebuilt=baseline.map(item=>{
@@ -52,11 +51,24 @@
       if(!previous)return item;
       if(previous.name!==item.name)renamed.set(previous.name,item.name);
       const extras=previous.aliases.filter(a=>!(
-        item.id==='default-18' && ['바디크림','보타랩바디크림','보타랩바디크림릴랙싱','보타랩바디크림모닝'].map(norm).includes(norm(a))
+        item.id==='default-18' && (
+          ['바디크림','보타랩바디크림','보타랩바디크림릴랙싱','보타랩바디크림모닝'].map(norm).includes(norm(a))
+          || /(?:선데이|모닝가든)/.test(norm(a))
+        )
       ));
       return {...previous,name:item.name,aliases:[...new Set([...extras,...item.aliases])].filter(a=>norm(a)!==norm(item.name))};
     });
     for(const extra of stored.products)if(!baseline.some(p=>p.id===extra.id))rebuilt.push(extra);
+    // Carry historical shade-specific body-cream aliases to the correct new SKU.
+    const historicalBody=byId.get('default-18');
+    if(historicalBody){
+      for(const alias of historicalBody.aliases){
+        const match=/(선데이|모닝가든)/.exec(norm(alias));
+        if(!match)continue;
+        const target=rebuilt.find(p=>p.id===(match[1]==='선데이'?'default-18':'default-25'));
+        if(target&&!target.aliases.some(a=>norm(a)===norm(alias)))target.aliases.push(alias);
+      }
+    }
     stored.products=rebuilt;
     for(const set of stored.sets)for(const item of set.components){
       if(renamed.has(item.name)&&!ambiguous.has(item.name))item.name=renamed.get(item.name);
@@ -140,8 +152,13 @@
         const taken=[...(v.products||[]).filter(p=>p!==target).flatMap(p=>[p.name,...p.aliases]),...(v.sets||[]).flatMap(x=>x.aliases),...(v.gifts||[])].some(a=>norm(a)===key);
         if(!taken && ![target.name,...target.aliases].some(a=>norm(a)===key))target.aliases.push(label);
       }
+      const preCatalogBackup=JSON.stringify(v);
+      const needsCatalogMigration=v.products.length!==26 || v.products.some((p,i)=>catalogV2[i]?.[0]!==p.id || catalogV2[i]?.[1]!==p.name);
       migrateCatalogV2(v);
       validateSettings(v);
+      if(needsCatalogMigration && !localStorage.getItem('inventory-check-settings-before-26-items')){
+        localStorage.setItem('inventory-check-settings-before-26-items',preCatalogBackup);
+      }
       try{localStorage.setItem(STORAGE_KEY,JSON.stringify(v));}catch(e){console.warn('설정 자동 저장 실패:',e.message);}
       return v;
     }}
