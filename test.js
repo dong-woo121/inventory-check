@@ -141,4 +141,24 @@ assert.equal(analyze('슈아멜 너리싱 바디 크림 선데이1개',catalog).
 assert.equal(analyze('보타랩바디크림1개',catalog).hasErrors,true);
 assert.equal(analyze('인셀덤5종1세트',catalog).totals.get('더마톨로지 크림'),1);
 assert.equal(analyze('인셀덤래디엄솜3종',catalog).totals.get('래디언솜 에센스'),1);
+// Migrate historical 24-SKU localStorage records without dropping approved aliases.
+const legacyNames=['클렌징오일','오일미스트','엑티브 크림','딥톡','비비','선젤','퍼스트 패키지','샴푸','컨디셔너','래디언솜 토너','래디언솜 앰플','라이프닝 리셋오메가','인셀덤 콜라겐','엑티브 에너지샷','래디언솜 크림','카밍젤','밸런싱 젤 클렌저','엑티브 클린업 파우더','보타랩 바디크림','메이크업 스프레이','루미너스 쿠션 21호','루미너스 쿠션 23호','바디워시','멀티밤'];
+const oldCatalog={
+ products:legacyNames.map((name,i)=>({id:'default-'+i,name,aliases:['legacy-alias-'+i]})),
+ sets:[{aliases:['인셀덤 래디언솜 3종'],components:[{name:'래디언솜 토너',qty:1},{name:'래디언솜 앰플',qty:1},{name:'래디언솜 크림',qty:1}]}],
+ gifts:['화장품샘플']
+};
+oldCatalog.products[18].aliases.push('바디크림','보타랩바디크림모닝가든');
+saved.set('inventory-check-settings-v1',JSON.stringify(oldCatalog));
+const v2Context={console,document:{getElementById(id){return element()}},localStorage:{getItem(k){return saved.get(k)||null},setItem(k,v){saved.set(k,v)}},module:{exports:{}}};
+vm.runInNewContext(fs.readFileSync(__dirname+'/script.js','utf8'),v2Context,{filename:'script.js'});
+const newCatalog=JSON.parse(saved.get('inventory-check-settings-v1'));
+assert.equal(newCatalog.products.length,26);
+assert.equal(newCatalog.products[0].name,'라이프닝 뷰티 콜라겐');
+assert.equal(newCatalog.products[25].name,'슈아멜 너리싱 바디 크림 모닝가든');
+assert.ok(newCatalog.products.find(p=>p.id==='default-4').aliases.includes('legacy-alias-4'));
+assert.ok(newCatalog.products.find(p=>p.id==='default-25').aliases.includes('보타랩바디크림모닝가든'));
+assert.equal(v2Context.module.exports.analyze('바디크림1개',newCatalog).hasErrors,true);
+assert.equal(v2Context.module.exports.analyze('인셀덤 래디언솜 3종1세트',newCatalog).totals.get('래디언솜 에센스'),1);
+assert.ok(saved.has('inventory-check-settings-before-26-items'));
 console.log('PASS: manual approval, bundle decomposition, localStorage migration, and inventory safety assertions');
