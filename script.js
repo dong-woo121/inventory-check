@@ -32,9 +32,44 @@
       return [{aliases:[...rule.aliases],components:rule.items.map(([id,qty])=>({name:byId.get(id),qty}))}];
     });
   }
+  const catalogV2 = [["default-12","라이프닝 뷰티 콜라겐",["라이프닝뷰티콜라겐"]],["default-13","라이프닝 액티브 에너지샷",["라이프닝액티브에너지샷"]],["default-11","라이프닝 리셋 비타민&오메가3",["라이프닝리셋비타민&오메가3","인셀덤 라이프닝 리셋 비타민&오메가3"]],["default-3","라이프닝 딥톡 플러스",["라이프닝딥톡플러스"]],["default-5","모이스쳐 레이어 선 프로텍터",["모이스쳐레이어선프로텍터"]],["default-23","멀티 스틱 밤",["멀티스틱밤"]],["default-15","카밍 밸런스 젤",["카밍밸런스젤","인셀덤카밍밸런스젤"]],["default-17","클렌징 파우더 워시",["클렌징파우더워시"]],["default-4","쉬어 글로우 비비",["쉬어글로우비비"]],["default-1","투페이스 오일 미스트",["투페이스오일미스트"]],["default-6","더마톨로지 퍼스트 패키지",["더마톨로지퍼스트패키지"]],["default-0","모이스쳐 클렌징 오일",["모이스쳐클렌징오일"]],["default-2","더마톨로지 크림",["더마톨로지크림"]],["default-22","슈아멜 너리싱 바디워시",["슈아멜너리싱바디워시"]],["default-8","데저티콜라 플러스 컨디셔너",["데저티콜라플러스컨디셔너","한방컨디셔너"]],["default-7","데저티콜라 플러스 샴푸",["데저티콜라플러스샴푸"]],["default-19","스테이 메이크업 스프레이",["스테이메이크업스프레이"]],["default-16","밸런싱 젤 클렌저",[]],["default-24","퍼밍 멜팅 마스크",["퍼밍멜팅마스크"]],["default-20","루미너스 모이스트 쿠션 21호",["인셀덤 루미너스 모이스트 쿠션 21호","인셀덤 뷰티 루미너스 모이스트 쿠션 21호"]],["default-21","루미너스 모이스트 쿠션 23호",["인셀덤 루미너스 모이스트 쿠션 23호","인셀덤 뷰티 루미너스 모이스트 쿠션 23호"]],["default-10","래디언솜 에센스",["래디언솜에센스"]],["default-14","래디언솜 크림",[]],["default-9","래디언솜 토너",[]],["default-18","슈아멜 너리싱 바디 크림 선데이",["슈아멜너리싱바디크림선데이","보타랩바디크림선데이"]],["default-25","슈아멜 너리싱 바디 크림 모닝가든",["슈아멜너리싱바디크림모닝가든","보타랩바디크림모닝가든"]]];
+  const catalogProducts = () => catalogV2.map(([id,name,extra])=> {
+    const ix=Number(id.slice(8));
+    const original=ix<names.length?names[ix]:null;
+    const previous=ix<aliases.length?aliases[ix].split(','):[];
+    const safe= id==='default-18' ? previous.filter(x=>!['바디크림','보타랩바디크림','보타랩바디크림릴랙싱','보타랩바디크림모닝'].includes(x)) : previous;
+    return {id,name,aliases:[...new Set([...safe,...(original&&id!=='default-18'?[original]:[]),...extra].filter(x=>norm(x)!==norm(name)))]};
+  });
+  function migrateCatalogV2(stored){
+    if(!stored||!Array.isArray(stored.products)||!Array.isArray(stored.sets))return stored;
+    const baseline=catalogProducts();
+    const byId=new Map(stored.products.map(p=>[p.id,p]));
+    const oldNames=new Map(stored.products.map(p=>[p.name,p.id]));
+    const renamed=new Map();
+    const ambiguous=new Set(['보타랩 바디크림']);
+    const rebuilt=baseline.map(item=>{
+      const previous=byId.get(item.id);
+      if(!previous)return item;
+      if(previous.name!==item.name)renamed.set(previous.name,item.name);
+      const extras=previous.aliases.filter(a=>!(
+        item.id==='default-18' && ['바디크림','보타랩바디크림','보타랩바디크림릴랙싱','보타랩바디크림모닝'].map(norm).includes(norm(a))
+      ));
+      return {...previous,name:item.name,aliases:[...new Set([...extras,...item.aliases])].filter(a=>norm(a)!==norm(item.name))};
+    });
+    for(const extra of stored.products)if(!baseline.some(p=>p.id===extra.id))rebuilt.push(extra);
+    stored.products=rebuilt;
+    for(const set of stored.sets)for(const item of set.components){
+      if(renamed.has(item.name)&&!ambiguous.has(item.name))item.name=renamed.get(item.name);
+    }
+    // Preserve any old generic-body-cream set as an explicit validation failure:
+    // it cannot safely be assigned to Sunday or Morning Garden without user approval.
+    if(stored.sets.some(set=>set.components.some(c=>ambiguous.has(c.name))))
+      throw Error('기존 세트에 바디크림 종류가 불명확합니다. 설정 백업 후 관리자 확인이 필요합니다.');
+    return stored;
+  }
   const defaults = () => ({
-    products: names.map((name,i)=>({id:`default-${i}`,name,aliases:aliases[i].split(',')})),
-    sets:[{aliases:['인셀덤 래디언솜 3종','래디언솜 3종','인셀덤래디언솜3종','인셀덤래디엄솜3종','인셀덤래디엄솜3종세트'],components:[{name:'래디언솜 토너',qty:1},{name:'래디언솜 앰플',qty:1},{name:'래디언솜 크림',qty:1}]},...additionalSets(names.map((name,i)=>({id:`default-${i}`,name})))],
+    products: catalogProducts(),
+    sets:[{aliases:['인셀덤 래디언솜 3종','래디언솜 3종','인셀덤래디언솜3종','인셀덤래디엄솜3종','인셀덤래디엄솜3종세트'],components:[{name:'래디언솜 토너',qty:1},{name:'래디언솜 에센스',qty:1},{name:'래디언솜 크림',qty:1}]},...additionalSets(catalogProducts())],
     gifts:['화장품샘플','화장품 샘플','사은품 마스크','마스크 사은품','무료 마스크','증정 마스크','마스크팩 사은품','사은품 마스크팩']
   });
   const $ = id => document.getElementById(id);
@@ -105,6 +140,7 @@
         const taken=[...(v.products||[]).filter(p=>p!==target).flatMap(p=>[p.name,...p.aliases]),...(v.sets||[]).flatMap(x=>x.aliases),...(v.gifts||[])].some(a=>norm(a)===key);
         if(!taken && ![target.name,...target.aliases].some(a=>norm(a)===key))target.aliases.push(label);
       }
+      migrateCatalogV2(v);
       validateSettings(v);
       try{localStorage.setItem(STORAGE_KEY,JSON.stringify(v));}catch(e){console.warn('설정 자동 저장 실패:',e.message);}
       return v;
